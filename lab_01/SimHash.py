@@ -12,19 +12,22 @@ def simhash(text):
         hashed = hashlib.md5(word.encode('utf-8'))
         decimal = int(hashed.hexdigest(), 16)
 
-        # if decimal in cache:
-        #     sh = [x + y for x, y in zip(sh, cache[decimal])]
-        #     continue
+        if decimal in cache:
+            sh = [x + y for x, y in zip(sh, cache[decimal])]
+            continue
 
         bits = format(decimal, '0128b')
+        sh_cached = [0] * 128
 
         for i, bit in enumerate(bits):
             if int(bit) == 1:
                 sh[i] += 1
+                sh_cached[i] += 1
             else:
                 sh[i] -= 1
+                sh_cached[i] -= 1
 
-        cache[decimal] = sh.copy()
+        cache[decimal] = sh_cached
 
     for i in range(len(sh)):
         if sh[i] >= 0:
@@ -49,12 +52,26 @@ def count_near_duplicates(line, n):
             continue
 
         comparing_hash = hashes[x]
-        distance = hamming_distance(comparing_hash, base)
+        distance = get_hamming_distance(base, comparing_hash)
 
         if distance <= k:
             count += 1
 
     return count
+
+
+def get_hamming_distance(base, comparing_hash):
+    if base > comparing_hash:
+        t = (comparing_hash, base)
+    else:
+        t = (base, comparing_hash)
+
+    if t in cache:
+        return cache[t]
+
+    distance = hamming_distance(comparing_hash, base)
+    cache[t] = distance
+    return distance
 
 
 def hamming_distance(a, b):
