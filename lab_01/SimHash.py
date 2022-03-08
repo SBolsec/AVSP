@@ -16,7 +16,7 @@ def simhash(text):
             sh = [x + y for x, y in zip(sh, cache[decimal])]
             continue
 
-        bits = format(decimal, '0128b')
+        bits = bin(decimal)[2:].zfill(128)
         sh_cached = [0] * 128
 
         for i, bit in enumerate(bits):
@@ -62,15 +62,15 @@ def count_near_duplicates(line, n):
 
 def get_hamming_distance(base, comparing_hash):
     if base > comparing_hash:
-        t = (comparing_hash, base)
+        pair = (comparing_hash, base)
     else:
-        t = (base, comparing_hash)
+        pair = (base, comparing_hash)
 
-    if t in cache:
-        return cache[t]
+    if pair in cache:
+        return cache[pair]
 
     distance = hamming_distance(comparing_hash, base)
-    cache[t] = distance
+    cache[pair] = distance
     return distance
 
 

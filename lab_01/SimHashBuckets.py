@@ -22,7 +22,7 @@ def simhash(text):
             sh = [x + y for x, y in zip(sh, cache[decimal])]
             continue
 
-        bits = format(decimal, '0128b')
+        bits = bin(decimal)[2:].zfill(128)
         sh_cached = [0] * 128
 
         for i, bit in enumerate(bits):
@@ -45,19 +45,18 @@ def simhash(text):
     return int(x, 2)
 
 
-def count_near_duplicates(line, n):
-    # TODO: change this
+def count_near_duplicates(line):
     fragments = line.split(' ')
     i = int(fragments[0])
     k = int(fragments[1])
 
+    if i not in candidates:
+        return 0
+
     count = 0
     base = hashes[i]
 
-    for x in range(n):
-        if x == i:
-            continue
-
+    for x in candidates[i]:
         comparing_hash = hashes[x]
         distance = get_hamming_distance(base, comparing_hash)
 
@@ -69,15 +68,15 @@ def count_near_duplicates(line, n):
 
 def get_hamming_distance(base, comparing_hash):
     if base > comparing_hash:
-        t = (comparing_hash, base)
+        pair = (comparing_hash, base)
     else:
-        t = (base, comparing_hash)
+        pair = (base, comparing_hash)
 
-    if t in cache:
-        return cache[t]
+    if pair in cache:
+        return cache[pair]
 
     distance = hamming_distance(comparing_hash, base)
-    cache[t] = distance
+    cache[pair] = distance
     return distance
 
 
@@ -92,19 +91,22 @@ def hamming_distance(a, b):
     return result
 
 
+def hash_to_int(hash_value, band):
+    bits = bin(hash_value)[2:].zfill(128)
+
+    band_end = K - (R * band)
+    band_start = band_end - R
+    significant_bits = bits[band_start:band_end]
+
+    return int(significant_bits, 2)
+
+
 def lsh(n):
-    for belt in range(B):
+    for band in range(B):
         compartments = {}
 
         for current_id in range(n):
-            current_hash = hashes[current_id]
-
-            bits = format(current_hash, '0128b')
-            belt_start = R * belt
-            belt_end = belt_start + R
-            significant_bits = bits[belt_start:belt_end]
-            value = int(significant_bits, 2)
-
+            value = hash_to_int(hashes[current_id], band)
             texts_in_compartment = set()
 
             if value in compartments:
@@ -116,7 +118,7 @@ def lsh(n):
                         candidates[current_id] = {text_id}
 
                     if text_id in candidates:
-                        candidates[text_id].add(text_id)
+                        candidates[text_id].add(current_id)
                     else:
                         candidates[text_id] = {current_id}
             else:
@@ -124,7 +126,6 @@ def lsh(n):
 
             texts_in_compartment.add(current_id)
             compartments[value] = texts_in_compartment
-
 
 
 def main():
@@ -147,7 +148,7 @@ def main():
             hashes.append(simhash(line))
             continue
 
-        print(count_near_duplicates(line, n))
+        print(count_near_duplicates(line))
 
 
 if __name__ == '__main__':
