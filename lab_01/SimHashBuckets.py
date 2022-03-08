@@ -1,8 +1,14 @@
 import sys
 import hashlib
 
-cache = {}      # Key - int(md5(word)), Value - simhash
-hashes = []     # stores calculated simhash values
+
+K = 128             # Number of bits in hash
+B = 8               # Number of belts
+R = int(K / B)      # Number of bits each belt contains
+
+cache = {}          # Key - int(md5(word)), Value - simhash
+hashes = []         # stores calculated simhash values
+candidates = {}     # Candidates for being near duplicates
 
 
 def simhash(text):
@@ -40,6 +46,7 @@ def simhash(text):
 
 
 def count_near_duplicates(line, n):
+    # TODO: change this
     fragments = line.split(' ')
     i = int(fragments[0])
     k = int(fragments[1])
@@ -85,6 +92,41 @@ def hamming_distance(a, b):
     return result
 
 
+def lsh(n):
+    for belt in range(B):
+        compartments = {}
+
+        for current_id in range(n):
+            current_hash = hashes[current_id]
+
+            bits = format(current_hash, '0128b')
+            belt_start = R * belt
+            belt_end = belt_start + R
+            significant_bits = bits[belt_start:belt_end]
+            value = int(significant_bits, 2)
+
+            texts_in_compartment = set()
+
+            if value in compartments:
+                texts_in_compartment = compartments[value]
+                for text_id in texts_in_compartment:
+                    if current_id in candidates:
+                        candidates[current_id].add(text_id)
+                    else:
+                        candidates[current_id] = {text_id}
+
+                    if text_id in candidates:
+                        candidates[text_id].add(text_id)
+                    else:
+                        candidates[text_id] = {current_id}
+            else:
+                texts_in_compartment = set()
+
+            texts_in_compartment.add(current_id)
+            compartments[value] = texts_in_compartment
+
+
+
 def main():
     n, q, i = None, None, None
 
@@ -97,6 +139,7 @@ def main():
         if i == 0:
             q = int(line)
             i = q
+            lsh(n)
             continue
 
         if q is None:
