@@ -1,12 +1,11 @@
 import sys
 import hashlib
 
-
 K = 128             # Number of bits in hash
 B = 8               # Number of belts
 R = int(K / B)      # Number of bits each belt contains
 
-cache = {}          # Key - int(md5(word)), Value - simhash
+cache = {}          # Cache for sh in simhash and hamming distance
 hashes = []         # stores calculated simhash values
 candidates = {}     # Candidates for being near duplicates
 
@@ -15,25 +14,25 @@ def simhash(text):
     sh = [0] * 128
     words = text.strip().split(" ")
     for word in words:
+        if word in cache:
+            sh = [x + y for x, y in zip(sh, cache[word])]
+            continue
+
         hashed = hashlib.md5(word.encode('utf-8'))
         decimal = int(hashed.hexdigest(), 16)
-
-        if decimal in cache:
-            sh = [x + y for x, y in zip(sh, cache[decimal])]
-            continue
 
         bits = bin(decimal)[2:].zfill(128)
         sh_cached = [0] * 128
 
         for i, bit in enumerate(bits):
-            if int(bit) == 1:
+            if bit == '1':
                 sh[i] += 1
                 sh_cached[i] += 1
             else:
                 sh[i] -= 1
                 sh_cached[i] -= 1
 
-        cache[decimal] = sh_cached
+        cache[word] = sh_cached
 
     for i in range(len(sh)):
         if sh[i] >= 0:
