@@ -2,7 +2,7 @@ import sys
 import hashlib
 
 
-cache = {}      # Cache for sh in simhash and hamming distance
+cache = {}      # Cache for sh in simhash
 hashes = []     # stores calculated simhash values
 
 
@@ -46,44 +46,25 @@ def count_near_duplicates(line, n):
     k = int(fragments[1])
 
     count = 0
-    base = hashes[i]
+    base_bits = bin(hashes[i])[2:].zfill(128)
 
-    for x in range(n):
-        if x == i:
+    for index in range(n):
+        if index == i:
             continue
 
-        comparing_hash = hashes[x]
-        distance = get_hamming_distance(base, comparing_hash)
+        comparing_bits = bin(hashes[index])[2:].zfill(128)
+
+        distance = 0
+        for x, y in zip(base_bits, comparing_bits):
+            if x != y:
+                distance += 1
+                if distance > k:
+                    break
 
         if distance <= k:
             count += 1
 
     return count
-
-
-def get_hamming_distance(base, comparing_hash):
-    if base > comparing_hash:
-        pair = (comparing_hash, base)
-    else:
-        pair = (base, comparing_hash)
-
-    if pair in cache:
-        return cache[pair]
-
-    distance = hamming_distance(comparing_hash, base)
-    cache[pair] = distance
-    return distance
-
-
-def hamming_distance(a, b):
-    x = a ^ b
-    result = 0
-
-    while x > 0:
-        result += x & 1
-        x >>= 1
-
-    return result
 
 
 def main():
