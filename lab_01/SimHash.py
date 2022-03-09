@@ -8,7 +8,8 @@ hashes = []     # stores calculated simhash values
 
 def simhash(text):
     sh = [0] * 128
-    words = text.strip().split(" ")
+    words = text.strip().split(' ')
+
     for word in words:
         if word in cache:
             sh = [x + y for x, y in zip(sh, cache[word])]

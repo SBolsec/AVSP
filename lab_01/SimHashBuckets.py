@@ -1,18 +1,20 @@
 import sys
 import hashlib
 
+
 K = 128             # Number of bits in hash
 B = 8               # Number of belts
 R = int(K / B)      # Number of bits each belt contains
 
-cache = {}          # Cache for sh in simhash and hamming distance
+cache = {}          # Cache for sh in simhash
 hashes = []         # stores calculated simhash values
 candidates = {}     # Candidates for being near duplicates
 
 
 def simhash(text):
     sh = [0] * 128
-    words = text.strip().split(" ")
+    words = text.strip().split(' ')
+
     for word in words:
         if word in cache:
             sh = [x + y for x, y in zip(sh, cache[word])]
@@ -53,11 +55,17 @@ def count_near_duplicates(line):
         return 0
 
     count = 0
-    base = hashes[i]
+    base_bits = bin(hashes[i])[2:].zfill(128)
 
-    for x in candidates[i]:
-        comparing_hash = hashes[x]
-        distance = get_hamming_distance(base, comparing_hash)
+    for index in candidates[i]:
+        comparing_bits = bin(hashes[index])[2:].zfill(128)
+
+        distance = 0
+        for x, y in zip(base_bits, comparing_bits):
+            if x != y:
+                distance += 1
+                if distance > k:
+                    break
 
         if distance <= k:
             count += 1
