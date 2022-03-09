@@ -1,6 +1,6 @@
 import sys
 import hashlib
-import time
+
 
 cache = {}      # Cache for sh in simhash and hamming distance
 hashes = []     # stores calculated simhash values
@@ -109,7 +109,4 @@ def main():
 
 
 if __name__ == '__main__':
-    start = time.time()
     main()
-    end = time.time()
-    print(end - start)
