@@ -1,12 +1,9 @@
 import sys
 import hashlib
+import time
 
 
-cache = {}      # Cache for sh in simhash
-hashes = []     # stores calculated simhash values
-
-
-def simhash(text):
+def simhash(cache, text):
     sh = [0] * 128
     words = text.strip().split(' ')
 
@@ -31,36 +28,33 @@ def simhash(text):
 
         cache[word] = sh_cached
 
-    for i in range(len(sh)):
-        if sh[i] >= 0:
-            sh[i] = 1
-        else:
-            sh[i] = 0
-
+    sh = [1 if x >= 0 else 0 for x in sh]
     x = ''.join(str(x) for x in sh)
     return int(x, 2)
 
 
-def count_near_duplicates(line, n):
+bits_in_hexadecimal = {
+    '0': 0, '1': 1, '2': 1, '3': 2, '4': 1, '5': 2, '6': 2, '7': 3,
+    '8': 1, '9': 2, 'a': 2, 'b': 3, 'c': 2, 'd': 3, 'e': 3, 'f': 4,
+}
+
+
+def count_near_duplicates(hashes, line, n):
     fragments = line.split(' ')
     i = int(fragments[0])
     k = int(fragments[1])
 
     count = 0
-    base_bits = bin(hashes[i])[2:].zfill(128)
 
     for index in range(n):
         if index == i:
             continue
 
-        comparing_bits = bin(hashes[index])[2:].zfill(128)
-
         distance = 0
-        for x, y in zip(base_bits, comparing_bits):
-            if x != y:
-                distance += 1
-                if distance > k:
-                    break
+        for x in hex(hashes[i] ^ hashes[index])[2:]:
+            distance += bits_in_hexadecimal[x]
+            if distance > k:
+                break
 
         if distance <= k:
             count += 1
@@ -70,6 +64,8 @@ def count_near_duplicates(line, n):
 
 def main():
     n, q, i = None, None, None
+    hashes = []
+    cache = {}
 
     for line in sys.stdin:
         if n is None:
@@ -84,11 +80,14 @@ def main():
 
         if q is None:
             i -= 1
-            hashes.append(simhash(line))
+            hashes.append(simhash(cache, line))
             continue
 
-        print(count_near_duplicates(line, n))
+        print(count_near_duplicates(hashes, line, n))
 
 
 if __name__ == '__main__':
+    start = time.time()
     main()
+    end = time.time()
+    print(end - start)

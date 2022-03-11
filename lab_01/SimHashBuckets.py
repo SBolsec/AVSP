@@ -1,17 +1,13 @@
 import sys
 import hashlib
+import time
 
 
 K = 128             # Number of bits in hash
 B = 8               # Number of belts
 R = int(K / B)      # Number of bits each belt contains
 
-cache = {}          # Cache for sh in simhash
-hashes = []         # stores calculated simhash values
-candidates = {}     # Candidates for being near duplicates
-
-
-def simhash(text):
+def simhash(cache, text):
     sh = [0] * 128
     words = text.strip().split(' ')
 
@@ -36,17 +32,18 @@ def simhash(text):
 
         cache[word] = sh_cached
 
-    for i in range(len(sh)):
-        if sh[i] >= 0:
-            sh[i] = 1
-        else:
-            sh[i] = 0
-
+    sh = [1 if x >= 0 else 0 for x in sh]
     x = ''.join(str(x) for x in sh)
     return int(x, 2)
 
 
-def count_near_duplicates(line):
+bits_in_hexadecimal = {
+    '0': 0, '1': 1, '2': 1, '3': 2, '4': 1, '5': 2, '6': 2, '7': 3,
+    '8': 1, '9': 2, 'a': 2, 'b': 3, 'c': 2, 'd': 3, 'e': 3, 'f': 4,
+}
+
+
+def count_near_duplicates(hashes, candidates, line):
     fragments = line.split(' ')
     i = int(fragments[0])
     k = int(fragments[1])
@@ -55,47 +52,18 @@ def count_near_duplicates(line):
         return 0
 
     count = 0
-    base_bits = bin(hashes[i])[2:].zfill(128)
 
     for index in candidates[i]:
-        comparing_bits = bin(hashes[index])[2:].zfill(128)
-
         distance = 0
-        for x, y in zip(base_bits, comparing_bits):
-            if x != y:
-                distance += 1
-                if distance > k:
-                    break
+        for x in hex(hashes[i] ^ hashes[index])[2:]:
+            distance += bits_in_hexadecimal[x]
+            if distance > k:
+                break
 
         if distance <= k:
             count += 1
 
     return count
-
-
-def get_hamming_distance(base, comparing_hash):
-    if base > comparing_hash:
-        pair = (comparing_hash, base)
-    else:
-        pair = (base, comparing_hash)
-
-    if pair in cache:
-        return cache[pair]
-
-    distance = hamming_distance(comparing_hash, base)
-    cache[pair] = distance
-    return distance
-
-
-def hamming_distance(a, b):
-    x = a ^ b
-    result = 0
-
-    while x > 0:
-        result += x & 1
-        x >>= 1
-
-    return result
 
 
 def hash_to_int(hash_value, band):
@@ -108,13 +76,14 @@ def hash_to_int(hash_value, band):
     return int(significant_bits, 2)
 
 
-def lsh(n):
+def lsh(hashes, n):
+    candidates = {}
+
     for band in range(B):
         compartments = {}
 
         for current_id in range(n):
             value = hash_to_int(hashes[current_id], band)
-            texts_in_compartment = set()
 
             if value in compartments:
                 texts_in_compartment = compartments[value]
@@ -134,9 +103,13 @@ def lsh(n):
             texts_in_compartment.add(current_id)
             compartments[value] = texts_in_compartment
 
+    return candidates
+
 
 def main():
-    n, q, i = None, None, None
+    n, q, i, candidates = None, None, None, None
+    hashes = []
+    cache = {}
 
     for line in sys.stdin:
         if n is None:
@@ -147,16 +120,19 @@ def main():
         if i == 0:
             q = int(line)
             i = q
-            lsh(n)
+            candidates = lsh(hashes, n)
             continue
 
         if q is None:
             i -= 1
-            hashes.append(simhash(line))
+            hashes.append(simhash(cache, line))
             continue
 
-        print(count_near_duplicates(line))
+        print(count_near_duplicates(hashes, candidates, line))
 
 
 if __name__ == '__main__':
+    start = time.time()
     main()
+    end = time.time()
+    print(end - start)
