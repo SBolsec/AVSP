@@ -1,31 +1,30 @@
 import sys
 import hashlib
-import time
+import numpy as np
 
 
 def simhash(cache, text):
-    sh = [0] * 128
+    sh = np.zeros(128, dtype=int)
     words = text.strip().split(' ')
 
     for word in words:
         if word in cache:
-            sh = [x + y for x, y in zip(sh, cache[word])]
+            sh += cache[word]
             continue
 
         hashed = hashlib.md5(word.encode('utf-8'))
         decimal = int(hashed.hexdigest(), 16)
 
         bits = bin(decimal)[2:].zfill(128)
-        sh_cached = [0] * 128
+        sh_cached = np.zeros(128, dtype=int)
 
         for i, bit in enumerate(bits):
             if bit == '1':
-                sh[i] += 1
                 sh_cached[i] += 1
             else:
-                sh[i] -= 1
                 sh_cached[i] -= 1
 
+        sh += sh_cached
         cache[word] = sh_cached
 
     sh = [1 if x >= 0 else 0 for x in sh]
@@ -87,7 +86,4 @@ def main():
 
 
 if __name__ == '__main__':
-    start = time.time()
     main()
-    end = time.time()
-    print(end - start)
