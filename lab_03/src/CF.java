@@ -1,0 +1,168 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+public class CF {
+
+    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.000");
+
+    private static final Function<String, Integer> STRING_VALUE_CONVERTER = stringValue -> {
+        try {
+            return Integer.parseInt(stringValue);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    };
+
+    private final Integer numberOfItems;
+    private final Integer numberOfUsers;
+    private final List<List<Integer>> itemsTable;
+    private final List<List<Integer>> usersTable;
+    private final List<List<Integer>> queryList;
+    private final List<List<Double>> normalizedItemRatings;
+    private final List<List<Double>> normalizedUserRatings;
+
+    public CF() throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+            // Parse the user-item table
+            String[] parts = reader.readLine().trim().split(" ");
+            numberOfItems = Integer.parseInt(parts[0]);
+            numberOfUsers = Integer.parseInt(parts[1]);
+
+            itemsTable = new ArrayList<>(numberOfItems);
+            for (int i = 0; i < numberOfItems; i++) {
+                final List<Integer> itemRatings = Arrays.stream(reader.readLine().trim().split(" "))
+                    .map(STRING_VALUE_CONVERTER)
+                    .collect(Collectors.toList());
+
+                itemsTable.add(itemRatings);
+            }
+
+            usersTable = new ArrayList<>(numberOfUsers);
+            for (int i = 0; i < numberOfUsers; i++) {
+                final int index = i;
+                final List<Integer> userRatings = itemsTable.stream()
+                    .map(x -> x.get(index))
+                    .collect(Collectors.toList());
+
+                usersTable.add(userRatings);
+            }
+
+            // Parse the queries
+            final int numberOfQueries = Integer.parseInt(reader.readLine().trim());
+            queryList = new ArrayList<>(numberOfQueries);
+
+            for (int i = 0; i < numberOfQueries; i++) {
+                final List<Integer> query = Arrays.stream(reader.readLine().trim().split(" "))
+                    .map(Integer::parseInt)
+                    .collect(Collectors.toList());
+
+                queryList.add(query);
+            }
+
+            // Mean center the tables
+            normalizedItemRatings = normalizeRatings(itemsTable);
+            normalizedUserRatings = normalizeRatings(usersTable);
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        final CF cf = new CF();
+
+        cf.processQueries();
+    }
+
+    private static String formatResult(Double result) {
+        final BigDecimal bd = BigDecimal.valueOf(result);
+        final BigDecimal res = bd.setScale(3, RoundingMode.HALF_UP);
+
+        return DECIMAL_FORMAT.format(res);
+    }
+
+    public void processQueries() {
+        for (final List<Integer> query : queryList) {
+            final int i = query.get(0) - 1;
+            final int j = query.get(1) - 1;
+            final int t = query.get(2);
+            final int k = query.get(3);
+
+            final double recommendationResult = (t == 0) ?
+                getRecommendationRating(i, j, k, numberOfItems, itemsTable, normalizedItemRatings) :
+                getRecommendationRating(j, i, k, numberOfUsers, usersTable, normalizedUserRatings);
+
+            System.out.println(formatResult(recommendationResult));
+        }
+    }
+
+    private Double getRecommendationRating(int i, int j, int k, int n, List<List<Integer>> ratings,
+        List<List<Double>> normalizedRatings) {
+        final Map<Integer, Double> similarityMap = new HashMap<>();
+
+        final List<Double> itemI = normalizedRatings.get(i);
+        for (int row = 0; row < n; row++) {
+            if (row == i) {
+                continue;
+            }
+            final Double coefficient = cosineSimilarity(itemI, normalizedRatings.get(row));
+            similarityMap.put(row, coefficient);
+        }
+
+        final List<Integer> indexesOfMostSimilarItems = similarityMap.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+            .limit(k)
+            .filter(x -> x.getValue() > 0)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+        final double nominator = indexesOfMostSimilarItems.stream()
+            .mapToDouble(x -> similarityMap.get(x) * ratings.get(x).get(j))
+            .sum();
+
+        final double denominator = indexesOfMostSimilarItems.stream().mapToDouble(similarityMap::get).sum();
+
+        return nominator / denominator;
+    }
+
+    private List<List<Double>> normalizeRatings(List<List<Integer>> ratings) {
+        final List<List<Double>> normalizedRatings = new ArrayList<>(ratings.size());
+
+        for (final List<Integer> row : ratings) {
+            final int sum = row.stream().filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+            final int count = (int) row.stream().filter(Objects::nonNull).count();
+            final double mean = (double) sum / count;
+
+            final List<Double> normalizedRow = row.stream()
+                .map(item -> item == null ? 0.0 : item - mean)
+                .collect(Collectors.toList());
+
+            normalizedRatings.add(normalizedRow);
+        }
+
+        return normalizedRatings;
+    }
+
+    private Double cosineSimilarity(List<Double> firstRow, List<Double> secondRow) {
+        double numerator = 0.0;
+        for (int i = 0, n = firstRow.size(); i < n; i++) {
+            numerator += (firstRow.get(i) * secondRow.get(i));
+        }
+
+        final double denominator = Math.sqrt(firstRow.stream().mapToDouble(x -> x * x).sum()) *
+            Math.sqrt(secondRow.stream().mapToDouble(x -> x * x).sum());
+
+        return denominator == 0.0 ? 0.0 : numerator / denominator;
+    }
+
+}
