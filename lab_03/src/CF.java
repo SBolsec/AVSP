@@ -6,25 +6,14 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class CF {
 
     private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.000");
-
-    private static final Function<String, Integer> STRING_VALUE_CONVERTER = stringValue -> {
-        try {
-            return Integer.parseInt(stringValue);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    };
 
     private final Integer numberOfItems;
     private final Integer numberOfUsers;
@@ -36,16 +25,16 @@ public class CF {
     private final Map<List<Integer>, Double> similarityCache = new HashMap<>();
 
     public CF() throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+        try (final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
             // Parse the user-item table
-            String[] parts = reader.readLine().trim().split(" ");
+            final String[] parts = reader.readLine().trim().split(" ");
             numberOfItems = Integer.parseInt(parts[0]);
             numberOfUsers = Integer.parseInt(parts[1]);
 
             itemsTable = new ArrayList<>(numberOfItems);
             for (int i = 0; i < numberOfItems; i++) {
                 final List<Integer> itemRatings = Arrays.stream(reader.readLine().trim().split(" "))
-                    .map(STRING_VALUE_CONVERTER)
+                    .map(rating -> "X".equals(rating) ? 0 : Integer.parseInt(rating))
                     .collect(Collectors.toList());
 
                 itemsTable.add(itemRatings);
@@ -96,12 +85,12 @@ public class CF {
         final List<List<Double>> normalizedRatings = new ArrayList<>(ratings.size());
 
         for (final List<Integer> row : ratings) {
-            final int sum = row.stream().filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
-            final int count = (int) row.stream().filter(Objects::nonNull).count();
+            final int sum = row.stream().mapToInt(Integer::intValue).sum();
+            final int count = (int) row.stream().filter(x -> x != 0).count();
             final double mean = (double) sum / count;
 
             final List<Double> normalizedRow = row.stream()
-                .map(item -> item == null ? 0.0 : item - mean)
+                .map(item -> item == 0 ? 0 : item - mean)
                 .collect(Collectors.toList());
 
             normalizedRatings.add(normalizedRow);
@@ -159,10 +148,14 @@ public class CF {
             }
         }
 
-        final List<Integer> indexesOfMostSimilarItems = similarityMap.entrySet().stream()
-            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+        var a = similarityMap.entrySet().stream()
+            .sorted(Map.Entry.<Integer, Double>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+            .filter(x -> ratings.get(x.getKey()).get(j) > 0)
             .limit(k)
             .filter(x -> x.getValue() > 0)
+            .collect(Collectors.toList());
+
+        final List<Integer> indexesOfMostSimilarItems = a.stream()
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
 
