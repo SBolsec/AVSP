@@ -33,6 +33,7 @@ public class CF {
     private final List<List<Integer>> queryList;
     private final List<List<Double>> normalizedItemRatings;
     private final List<List<Double>> normalizedUserRatings;
+    private final Map<List<Integer>, Double> similarityCache = new HashMap<>();
 
     public CF() throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
@@ -91,51 +92,7 @@ public class CF {
         return DECIMAL_FORMAT.format(res);
     }
 
-    public void processQueries() {
-        for (final List<Integer> query : queryList) {
-            final int i = query.get(0) - 1;
-            final int j = query.get(1) - 1;
-            final int t = query.get(2);
-            final int k = query.get(3);
-
-            final double recommendationResult = (t == 0) ?
-                getRecommendationRating(i, j, k, numberOfItems, itemsTable, normalizedItemRatings) :
-                getRecommendationRating(j, i, k, numberOfUsers, usersTable, normalizedUserRatings);
-
-            System.out.println(formatResult(recommendationResult));
-        }
-    }
-
-    private Double getRecommendationRating(int i, int j, int k, int n, List<List<Integer>> ratings,
-        List<List<Double>> normalizedRatings) {
-        final Map<Integer, Double> similarityMap = new HashMap<>();
-
-        final List<Double> itemI = normalizedRatings.get(i);
-        for (int row = 0; row < n; row++) {
-            if (row == i) {
-                continue;
-            }
-            final Double coefficient = cosineSimilarity(itemI, normalizedRatings.get(row));
-            similarityMap.put(row, coefficient);
-        }
-
-        final List<Integer> indexesOfMostSimilarItems = similarityMap.entrySet().stream()
-            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
-            .limit(k)
-            .filter(x -> x.getValue() > 0)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
-
-        final double nominator = indexesOfMostSimilarItems.stream()
-            .mapToDouble(x -> similarityMap.get(x) * ratings.get(x).get(j))
-            .sum();
-
-        final double denominator = indexesOfMostSimilarItems.stream().mapToDouble(similarityMap::get).sum();
-
-        return nominator / denominator;
-    }
-
-    private List<List<Double>> normalizeRatings(List<List<Integer>> ratings) {
+    private static List<List<Double>> normalizeRatings(List<List<Integer>> ratings) {
         final List<List<Double>> normalizedRatings = new ArrayList<>(ratings.size());
 
         for (final List<Integer> row : ratings) {
@@ -153,7 +110,7 @@ public class CF {
         return normalizedRatings;
     }
 
-    private Double cosineSimilarity(List<Double> firstRow, List<Double> secondRow) {
+    private static Double cosineSimilarity(List<Double> firstRow, List<Double> secondRow) {
         double numerator = 0.0;
         for (int i = 0, n = firstRow.size(); i < n; i++) {
             numerator += (firstRow.get(i) * secondRow.get(i));
@@ -163,6 +120,59 @@ public class CF {
             Math.sqrt(secondRow.stream().mapToDouble(x -> x * x).sum());
 
         return denominator == 0.0 ? 0.0 : numerator / denominator;
+    }
+
+    public void processQueries() {
+        for (final List<Integer> query : queryList) {
+            final int i = query.get(0) - 1;
+            final int j = query.get(1) - 1;
+            final int t = query.get(2);
+            final int k = query.get(3);
+
+            final double recommendationResult = (t == 0) ?
+                getRecommendationRating(i, j, k, t, numberOfItems, itemsTable, normalizedItemRatings) :
+                getRecommendationRating(j, i, k, t, numberOfUsers, usersTable, normalizedUserRatings);
+
+            System.out.println(formatResult(recommendationResult));
+        }
+    }
+
+    private Double getRecommendationRating(int i, int j, int k, int t, int n, List<List<Integer>> ratings,
+        List<List<Double>> normalizedRatings) {
+        final Map<Integer, Double> similarityMap = new HashMap<>();
+
+        final List<Double> itemI = normalizedRatings.get(i);
+        for (int row = 0; row < n; row++) {
+            if (row == i) {
+                continue;
+            }
+
+            final Double cachedSimilarity = similarityCache.get(List.of(t, i, row));
+            if (cachedSimilarity != null) {
+                similarityMap.put(row, cachedSimilarity);
+            } else {
+                final Double coefficient = cosineSimilarity(itemI, normalizedRatings.get(row));
+                similarityMap.put(row, coefficient);
+
+                similarityCache.put(List.of(t, i, row), coefficient);
+                similarityCache.put(List.of(t, row, i), coefficient);
+            }
+        }
+
+        final List<Integer> indexesOfMostSimilarItems = similarityMap.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+            .limit(k)
+            .filter(x -> x.getValue() > 0)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+        final double nominator = indexesOfMostSimilarItems.stream()
+            .mapToDouble(x -> similarityMap.get(x) * ratings.get(x).get(j))
+            .sum();
+
+        final double denominator = indexesOfMostSimilarItems.stream().mapToDouble(similarityMap::get).sum();
+
+        return nominator / denominator;
     }
 
 }
