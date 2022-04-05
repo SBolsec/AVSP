@@ -148,14 +148,11 @@ public class CF {
             }
         }
 
-        var a = similarityMap.entrySet().stream()
+        final List<Integer> indexesOfMostSimilarItems = similarityMap.entrySet().stream()
             .sorted(Map.Entry.<Integer, Double>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
             .filter(x -> ratings.get(x.getKey()).get(j) > 0)
             .limit(k)
             .filter(x -> x.getValue() > 0)
-            .collect(Collectors.toList());
-
-        final List<Integer> indexesOfMostSimilarItems = a.stream()
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
 
