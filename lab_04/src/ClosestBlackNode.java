@@ -13,17 +13,15 @@ public class ClosestBlackNode {
     private static final Integer MAX_DISTANCE = 10;
 
     private final Integer numberOfNodes;
-    private final Integer numberOfEdges;
-
     private final List<Boolean> isBlackNode;
 
     private final List<Set<Integer>> edges;
 
-    ClosestBlackNode() throws IOException {
+    public ClosestBlackNode() throws IOException {
         try (final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
             final String[] firstLine = reader.readLine().trim().split(" ");
             numberOfNodes = Integer.parseInt(firstLine[0]);
-            numberOfEdges = Integer.parseInt(firstLine[1]);
+            final int numberOfEdges = Integer.parseInt(firstLine[1]);
 
             isBlackNode = new ArrayList<>(numberOfNodes);
             for (int i = 0; i < numberOfNodes; i++) {
