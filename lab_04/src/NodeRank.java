@@ -18,7 +18,7 @@ public class NodeRank {
     private final List<Map<Integer, Double>> matrix;
     private final List<Query> queries;
 
-    private final List<List<Double>> iterationCache = new ArrayList<>();
+    private final List<double[]> iterationCache = new ArrayList<>();
 
     public NodeRank() throws IOException {
         try (final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
@@ -65,15 +65,15 @@ public class NodeRank {
 
     private double processQuery(final Query query) {
         if (query.numberOfIterations <= iterationCache.size() - 1) {
-            return iterationCache.get(query.numberOfIterations).get(query.node);
+            return iterationCache.get(query.numberOfIterations)[query.node];
         }
 
-        List<Double> oldR;
+        double[] oldR;
 
         if (iterationCache.isEmpty()) {
-            oldR = new ArrayList<>(n);
+            oldR = new double[n];
             for (int i = 0; i < n; i++) {
-                oldR.add(initialR);
+                oldR[i] = initialR;
             }
             iterationCache.add(oldR);
         } else {
@@ -81,25 +81,25 @@ public class NodeRank {
         }
 
         for (int iteration = iterationCache.size() - 1; iteration < query.numberOfIterations; iteration++) {
-            final List<Double> newR = calculateNextR(oldR);
+            final double[] newR = calculateNextR(oldR);
             iterationCache.add(newR);
             oldR = newR;
         }
 
-        return oldR.get(query.node);
+        return oldR[query.node];
     }
 
-    private List<Double> calculateNextR(List<Double> oldR) {
-        final List<Double> newR = new ArrayList<>(n);
+    private double[] calculateNextR(double[] oldR) {
+        final double[] newR = new double[n];
 
         for (int i = 0; i < n; i++) {
             double sum = teleportation;
 
             for (final Map.Entry<Integer, Double> entry : matrix.get(i).entrySet()) {
-                sum += entry.getValue() * oldR.get(entry.getKey());
+                sum += entry.getValue() * oldR[entry.getKey()];
             }
 
-            newR.add(sum);
+            newR[i] = sum;
         }
 
         return newR;
