@@ -5,7 +5,7 @@ do
 	dir=$(printf "%0*d\n" 2 $i)
 	echo "Test $dir"
 	# pokreni program i provjeri izlaz
-	res=`java ./src/NodeRank.java < examples/test$dir/R.in | diff examples/test$dir/R.out -`
+	res=`java ./src/ClosestBlackNode.java < examples/test$dir/R.in | diff examples/test$dir/R.out -`
 	if [ "$res" != "" ]
 	then
 		# izlazi ne odgovaraju
