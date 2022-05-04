@@ -55,14 +55,14 @@ public class ClosestBlackNode {
 
             Queue<Integer> queue = new PriorityQueue<>(edges.get(i));
 
-            for (int j = 0; j < MAX_DISTANCE; j++) {
+            for (int j = 1; j <= MAX_DISTANCE; j++) {
                 Queue<Integer> nextQueue = new PriorityQueue<>();
 
                 while (!queue.isEmpty()) {
                     final int node = queue.remove();
 
                     if (isBlackNode.get(node)) {
-                        System.out.println(node + " " + (j + 1));
+                        System.out.println(node + " " + j);
                         continue loop;
                     }
 
