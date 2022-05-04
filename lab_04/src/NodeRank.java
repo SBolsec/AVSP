@@ -15,7 +15,7 @@ public class NodeRank {
     private final Double initialR;
     private final Double teleportation;
 
-    private final Map<Integer, Node> adjecencyMatrix;
+    private final List<Map<Integer, Double>> matrix;
     private final List<Query> queries;
 
     private final List<List<Double>> iterationCache = new ArrayList<>();
@@ -30,12 +30,18 @@ public class NodeRank {
             teleportation = (1 - beta) / n;
 
             // parse adjacency matrix
-            adjecencyMatrix = new HashMap<>(n);
+            matrix = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                matrix.add(new HashMap<>());
+            }
             for (int i = 0; i < n; i++) {
                 final List<Integer> row = Arrays.stream(reader.readLine().trim().split(" "))
                     .map(Integer::parseInt)
                     .collect(Collectors.toList());
-                adjecencyMatrix.put(i, new Node(row));
+
+                for (Integer j : row) {
+                    matrix.get(j).put(i, beta / row.size());
+                }
             }
 
             final int numberOfQueries = Integer.parseInt(reader.readLine());
@@ -58,7 +64,7 @@ public class NodeRank {
     }
 
     private double processQuery(final Query query) {
-        if (query.numberOfIterations < iterationCache.size() - 1) {
+        if (query.numberOfIterations <= iterationCache.size() - 1) {
             return iterationCache.get(query.numberOfIterations).get(query.node);
         }
 
@@ -69,27 +75,34 @@ public class NodeRank {
             for (int i = 0; i < n; i++) {
                 oldR.add(initialR);
             }
+            iterationCache.add(oldR);
         } else {
             oldR = iterationCache.get(iterationCache.size() - 1);
         }
 
         for (int iteration = iterationCache.size() - 1; iteration < query.numberOfIterations; iteration++) {
-            final List<Double> newR = new ArrayList<>(n);
-            for (int i = 0; i < n; i++) {
-                double sum = teleportation;
-                for (int j = 0; j < n; j++) {
-                    final Node node = adjecencyMatrix.get(j);
-
-                    sum += node.neighbours.contains(i) ? (node.m * oldR.get(j)) : 0.0;
-                }
-                newR.add(sum);
-            }
-
+            final List<Double> newR = calculateNextR(oldR);
             iterationCache.add(newR);
             oldR = newR;
         }
 
         return oldR.get(query.node);
+    }
+
+    private List<Double> calculateNextR(List<Double> oldR) {
+        final List<Double> newR = new ArrayList<>(n);
+
+        for (int i = 0; i < n; i++) {
+            double sum = teleportation;
+
+            for (final Map.Entry<Integer, Double> entry : matrix.get(i).entrySet()) {
+                sum += entry.getValue() * oldR.get(entry.getKey());
+            }
+
+            newR.add(sum);
+        }
+
+        return newR;
     }
 
     private static String formatResult(Double result) {
@@ -100,19 +113,6 @@ public class NodeRank {
         final NodeRank nodeRank = new NodeRank();
 
         nodeRank.processQueries();
-    }
-
-    private class Node {
-
-        final List<Integer> neighbours;
-
-        final Double m;
-
-        public Node(final List<Integer> neighbours) {
-            this.neighbours = neighbours;
-            this.m = beta * 1.0 / neighbours.size();
-        }
-
     }
 
     private static class Query {
