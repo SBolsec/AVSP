@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,9 +27,34 @@ public class GNAlgorithm {
 
     private final Map<Integer, List<Boolean>> propertyVectorMap = new HashMap<>();
 
+    private final Double m2;
+
     private Double maximumModularity = Double.MIN_VALUE;
 
-    private List<Edge> maximumModularityEdges = new ArrayList<>();
+    private Map<Integer, List<Edge>> maximumModularityEdgeMap = new HashMap<>();
+
+    private final Map<Integer, List<Edge>> initialEdgeMap = new HashMap<>();
+
+    private static final Comparator<Set<Integer>> COMMUNITY_COMPARATOR = (o1, o2) -> {
+        final int first = Integer.compare(o1.size(), o2.size());
+
+        if (first != 0) {
+            return first;
+        }
+
+        final Iterator<Integer> i1 = o1.iterator();
+        final Iterator<Integer> i2 = o2.iterator();
+
+        while (i1.hasNext()) {
+            final int second = Integer.compare(i1.next(), i2.next());
+
+            if (second != 0) {
+                return second;
+            }
+        }
+
+        return 0;
+    };
 
     public GNAlgorithm() throws IOException {
         try (final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
@@ -61,21 +88,39 @@ public class GNAlgorithm {
                     .collect(Collectors.toList());
 
                 propertyVectorMap.put(node, propertiesVector);
+
+                if (!edgeMap.containsKey(node)) {
+                    edgeMap.put(node, new ArrayList<>());
+                }
             }
 
             edges.forEach(Edge::calculateWeight);
+
+            for (final Map.Entry<Integer, List<Edge>> entry : edgeMap.entrySet()) {
+                initialEdgeMap.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+
+            final double m = 0.5 * edges.stream()
+                .mapToDouble(edge -> edge.weight)
+                .sum();
+            m2 = 1.0 / (2 * m);
         }
     }
 
     public void run() {
         while (!edges.isEmpty()) {
-            calculateBetweenness();
+            final double modularity = calculateModularity();
+//            System.out.println("MODULARITY " + modularity);
+            if (modularity > maximumModularity) {
+                maximumModularity = modularity;
 
-//            final double modularity = calculateModularity();
-//            if (modularity > maximumModularity) {
-//                maximumModularity = modularity;
-//                maximumModularityEdges = new ArrayList<>(edges);
-//            }
+                maximumModularityEdgeMap = new HashMap<>();
+                for (final Map.Entry<Integer, List<Edge>> entry : edgeMap.entrySet()) {
+                    maximumModularityEdgeMap.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+                }
+            }
+
+            calculateBetweenness();
 
             final List<Edge> edgesToRemove = getEdgesWithHighestBetweenness();
 
@@ -174,14 +219,94 @@ public class GNAlgorithm {
     }
 
     public double calculateModularity() {
-        final double m2 = 1. / 2 * edges.size() / 2;
+        final Set<Set<Integer>> communities = groupCommunities(edgeMap);
 
-        // TODO
+        double sum = 0.0;
         for (final int u : edgeMap.keySet()) {
+            final double ku = sumNodeEdgeWeights(u);
 
+            for (final int v : edgeMap.keySet()) {
+                final double kv = sumNodeEdgeWeights(v);
+                final double edgeWeight = getEdgeWeight(u, v);
+
+                if (checkNodesInSameCommunity(communities, u, v)) {
+                    sum += edgeWeight - (ku * kv * m2);
+                }
+            }
         }
 
-        return 0.0;
+        return roundToFourDecimals(roundDouble(sum * m2));
+    }
+
+    private double sumNodeEdgeWeights(int node) {
+        return initialEdgeMap.get(node).stream()
+            .mapToDouble(edge -> edge.weight)
+            .sum();
+    }
+
+    private double getEdgeWeight(int from, int to) {
+        if (from == to) {
+            return 0.0;
+        }
+
+        return initialEdgeMap.get(from).stream()
+            .filter(edge -> edge.to == to)
+            .findFirst()
+            .map(edge -> edge.weight)
+            .orElse(0.0);
+    }
+
+    private Set<Set<Integer>> groupCommunities(Map<Integer, List<Edge>> map) {
+        final Set<Set<Integer>> communities = new TreeSet<>(COMMUNITY_COMPARATOR);
+        final Set<Integer> visited = new HashSet<>();
+
+        for (final int node : map.keySet()) {
+            if (!visited.contains(node)) {
+                final Set<Integer> community = new TreeSet<>();
+                final Queue<Integer> queue = new LinkedList<>();
+
+                queue.add(node);
+                visited.add(node);
+
+                while (!queue.isEmpty()) {
+                    final Integer currentNode = queue.remove();
+                    community.add(currentNode);
+
+                    for (final Edge edge : map.get(currentNode)) {
+                        if (!visited.contains(edge.to)) {
+                            queue.add(edge.to);
+                            visited.add(edge.to);
+                        }
+                    }
+                }
+
+                communities.add(community);
+            }
+        }
+
+        return communities;
+    }
+
+    private boolean checkNodesInSameCommunity(Set<Set<Integer>> communities, int u, int v) {
+        for (final Set<Integer> community : communities) {
+            if (community.contains(u) && community.contains(v)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private double roundToFourDecimals(double value) {
+        return Math.round(value * 10000.0) / 10000.0;
+    }
+
+    private double roundDouble(double value) {
+        if (Math.abs(value) < 0.00001) {
+            return 0.0;
+        }
+
+        return value;
     }
 
     private List<List<Integer>> transformSearchPaths(List<SearchNode> searchNodes) {
@@ -240,7 +365,18 @@ public class GNAlgorithm {
     }
 
     private void printCommunitiesWithMaximumModularity() {
-        // TODO
+        final Set<Set<Integer>> communities = groupCommunities(maximumModularityEdgeMap);
+
+        final List<String> communityStrings = new ArrayList<>();
+        for (final Set<Integer> community : communities) {
+            final String communityString = community.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining("-"));
+
+            communityStrings.add(communityString);
+        }
+
+        System.out.println(communityStrings.stream().collect(Collectors.joining(" ")));
     }
 
     private static int countSameValue(List<Boolean> vector1, List<Boolean> vector2) {

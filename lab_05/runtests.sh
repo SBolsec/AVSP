@@ -1,5 +1,5 @@
 #!/bin/bash
-for i in {0..1} # broj ispitnih primjera
+for i in {1..12} # broj ispitnih primjera
 do
 	# generiraj ime direktorija s vodećom nulom
 	dir=$(printf "%0*d\n" 2 $i)
