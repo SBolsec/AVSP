@@ -1,9 +1,10 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -110,7 +111,6 @@ public class GNAlgorithm {
     public void run() {
         while (!edges.isEmpty()) {
             final double modularity = calculateModularity();
-//            System.out.println("MODULARITY " + modularity);
             if (modularity > maximumModularity) {
                 maximumModularity = modularity;
 
@@ -125,8 +125,9 @@ public class GNAlgorithm {
             final List<Edge> edgesToRemove = getEdgesWithHighestBetweenness();
 
             edgesToRemove.stream()
-                .map(Edge::toString)
                 .collect(Collectors.toCollection(TreeSet::new))
+                .stream()
+                .map(Edge::toString)
                 .forEach(System.out::println);
 
             for (final Edge edge : edgesToRemove) {
@@ -145,11 +146,10 @@ public class GNAlgorithm {
 
         for (final int startNode : edgeMap.keySet()) {
             final List<SearchNode> shortestSearchPaths = findShortestPaths(startNode);
-            final List<List<Integer>> shortestPaths = transformSearchPaths(shortestSearchPaths);
+            final Set<List<Integer>> shortestPaths = transformSearchPaths(shortestSearchPaths);
 
             for (final List<Integer> path : shortestPaths) {
                 final long count = shortestPaths.stream()
-                    .filter(x -> x.size() == path.size())
                     .filter(x -> Objects.equals(x.get(0), path.get(0)) &&
                         Objects.equals(x.get(x.size() - 1), path.get(path.size() - 1)))
                     .count();
@@ -160,17 +160,13 @@ public class GNAlgorithm {
                     final Edge edge1 = new Edge(path.get(i), path.get(i + 1));
                     final Edge edge2 = new Edge(path.get(i + 1), path.get(i));
 
-                    final Optional<Edge> optionalEdge1 = edges.stream()
+                    edges.stream()
                         .filter(e -> Objects.equals(e, edge1))
-                        .findFirst();
+                        .forEach(e -> e.incrementBetweenness(incrementBy));
 
-                    optionalEdge1.ifPresent(e -> e.incrementBetweenness(incrementBy));
-
-                    final Optional<Edge> optionalEdge2 = edges.stream()
+                    edges.stream()
                         .filter(e -> Objects.equals(e, edge2))
-                        .findFirst();
-
-                    optionalEdge2.ifPresent(e -> e.incrementBetweenness(incrementBy));
+                        .forEach(e -> e.incrementBetweenness(incrementBy));
                 }
             }
         }
@@ -226,10 +222,10 @@ public class GNAlgorithm {
             final double ku = sumNodeEdgeWeights(u);
 
             for (final int v : edgeMap.keySet()) {
-                final double kv = sumNodeEdgeWeights(v);
-                final double edgeWeight = getEdgeWeight(u, v);
-
                 if (checkNodesInSameCommunity(communities, u, v)) {
+                    final double kv = sumNodeEdgeWeights(v);
+                    final double edgeWeight = getEdgeWeight(u, v);
+
                     sum += edgeWeight - (ku * kv * m2);
                 }
             }
@@ -309,8 +305,8 @@ public class GNAlgorithm {
         return value;
     }
 
-    private List<List<Integer>> transformSearchPaths(List<SearchNode> searchNodes) {
-        final List<List<Integer>> shortestPaths = new ArrayList<>();
+    private Set<List<Integer>> transformSearchPaths(List<SearchNode> searchNodes) {
+        final Set<List<Integer>> shortestPaths = new HashSet<>();
 
         for (final SearchNode searchNode : searchNodes) {
             if (searchNode.parents.isEmpty()) {
@@ -318,7 +314,7 @@ public class GNAlgorithm {
             }
 
             for (final SearchNode parent : searchNode.parents) {
-                final List<List<Integer>> paths = getPath(parent);
+                final Set<List<Integer>> paths = getPath(parent);
 
                 paths.forEach(path -> path.add(searchNode.node));
                 shortestPaths.addAll(paths);
@@ -328,20 +324,20 @@ public class GNAlgorithm {
         return shortestPaths;
     }
 
-    private List<List<Integer>> getPath(SearchNode searchNode) {
+    private Set<List<Integer>> getPath(SearchNode searchNode) {
         if (searchNode.parents.isEmpty()) {
             final List<Integer> path = new ArrayList<>();
             path.add(searchNode.node);
 
-            final List<List<Integer>> paths = new ArrayList<>();
+            final Set<List<Integer>> paths = new HashSet<>();
             paths.add(path);
             return paths;
         }
 
-        final List<List<Integer>> paths = new ArrayList<>();
+        final Set<List<Integer>> paths = new HashSet<>();
 
         for (final SearchNode parent : searchNode.parents) {
-            final List<List<Integer>> newPaths = getPath(parent);
+            final Set<List<Integer>> newPaths = getPath(parent);
             newPaths.forEach(path -> path.add(searchNode.node));
             paths.addAll(newPaths);
         }
@@ -350,18 +346,14 @@ public class GNAlgorithm {
     }
 
     private List<Edge> getEdgesWithHighestBetweenness() {
-        final Optional<Edge> optionalEdge = edges.stream()
-            .sorted(Comparator.comparingDouble(Edge::getBetweenness).reversed())
-            .findFirst();
+        final double maxBetweenness = edges.stream()
+            .mapToDouble(edge -> edge.betweenness)
+            .max()
+            .getAsDouble();
 
-        if (optionalEdge.isPresent()) {
-            final Edge edge = optionalEdge.get();
-            return edges.stream()
-                .filter(e -> Objects.equals(e.betweenness, edge.betweenness))
-                .collect(Collectors.toList());
-        }
-
-        return Collections.emptyList();
+        return edges.stream()
+            .filter(e -> Math.abs(e.betweenness - maxBetweenness) < 1e-5)
+            .collect(Collectors.toList());
     }
 
     private void printCommunitiesWithMaximumModularity() {
@@ -402,21 +394,25 @@ public class GNAlgorithm {
         public Edge(int from, int to) {
             this.from = from;
             this.to = to;
-            this.weight = Double.MIN_VALUE;
+            this.weight = 0.0;
             this.betweenness = 0.0;
         }
 
         private void calculateWeight() {
+            if (from == to) {
+                return;
+            }
+
             this.weight = propertyVectorMap.get(from).size() -
                 (countSameValue(propertyVectorMap.get(from), propertyVectorMap.get(to)) - 1.0);
         }
 
         private void incrementBetweenness(double increment) {
-            this.betweenness += increment;
+            this.betweenness += new BigDecimal(increment).setScale(4, RoundingMode.HALF_UP).doubleValue();
         }
 
         private void fixBetweenness() {
-            this.betweenness /= 2.0;
+            this.betweenness = new BigDecimal(this.betweenness / 2).setScale(4, RoundingMode.HALF_UP).doubleValue();
         }
 
         private void clearBetweenness() {
@@ -481,7 +477,7 @@ public class GNAlgorithm {
         }
 
         public boolean update(SearchNode parent, double weight) {
-            if (this.weight == weight) {
+            if (Math.abs(this.weight - weight) < 1e-5) {
                 this.parents.add(parent);
 
                 return true;
