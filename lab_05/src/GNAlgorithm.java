@@ -124,8 +124,7 @@ public class GNAlgorithm {
 
             final List<Edge> edgesToRemove = getEdgesWithHighestBetweenness();
 
-            edgesToRemove.stream()
-                .collect(Collectors.toCollection(TreeSet::new))
+            new TreeSet<>(edgesToRemove)
                 .stream()
                 .map(Edge::toString)
                 .forEach(System.out::println);
@@ -349,7 +348,7 @@ public class GNAlgorithm {
         final double maxBetweenness = edges.stream()
             .mapToDouble(edge -> edge.betweenness)
             .max()
-            .getAsDouble();
+            .orElse(0.0);
 
         return edges.stream()
             .filter(e -> Math.abs(e.betweenness - maxBetweenness) < 1e-5)
@@ -368,7 +367,7 @@ public class GNAlgorithm {
             communityStrings.add(communityString);
         }
 
-        System.out.println(communityStrings.stream().collect(Collectors.joining(" ")));
+        System.out.println(String.join(" ", communityStrings));
     }
 
     private static int countSameValue(List<Boolean> vector1, List<Boolean> vector2) {
@@ -417,10 +416,6 @@ public class GNAlgorithm {
 
         private void clearBetweenness() {
             this.betweenness = 0.0;
-        }
-
-        public double getBetweenness() {
-            return betweenness;
         }
 
         @Override
